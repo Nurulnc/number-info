@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>বাংলালিংক নাম্বার টু ইনফরমেশন</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 20px;
+            text-align: center;
+        }
+        .container {
+            max-width: 500px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #007bff;
+        }
+        input[type="text"] {
+            width: 80%;
+            padding: 10px;
+            margin: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        button {
+            background-color: #28a745;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #218838;
+        }
+        #result {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #e9ecef;
+            border-radius: 5px;
+            text-align: left;
+            display: none;
+        }
+        .error {
+            color: red;
+            background-color: #f8d7da;
+        }
+        .debug {
+            font-size: 12px;
+            color: #666;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>বাংলালিংক নাম্বার চেকার</h1>
+        <p>একটি ১১ ডিজিটের বাংলালিংক নাম্বার দিন (যেমন: 01912345678)</p>
+        <input type="text" id="number" placeholder="নাম্বার লিখুন..." maxlength="11">
+        <br>
+        <button onclick="checkNumber()">চেক করুন</button>
+        <div id="result"></div>
+        <div id="debug" class="debug" style="display:none;"></div>
+    </div>
+
+    <script>
+        function checkNumber() {
+            const number = document.getElementById('number').value.trim();
+            const resultDiv = document.getElementById('result');
+            const debugDiv = document.getElementById('debug');
+            
+            // Reset
+            resultDiv.style.display = 'none';
+            debugDiv.style.display = 'none';
+            
+            if (!number || number.length !== 11 || !number.startsWith('019')) {
+                resultDiv.innerHTML = '<p class="error">সঠিক বাংলালিংক নাম্বার দিন (১১ ডিজিট, 019 দিয়ে শুরু)!</p>';
+                resultDiv.style.display = 'block';
+                return;
+            }
+            
+            resultDiv.innerHTML = '<p>লোড হচ্ছে... (API চেক করা হচ্ছে)</p>';
+            resultDiv.style.display = 'block';
+            
+            // আপডেট: &i=1 যোগ করা হয়েছে
+            const apiUrl = `https://ck638.ct.ws/?number=${number}&i=1`;
+            debugDiv.innerHTML = `<strong>Debug:</strong> API URL: ${apiUrl}<br>সময়: ${new Date().toLocaleString()}`;
+            debugDiv.style.display = 'block';
+            console.log('API Call:', apiUrl);
+            
+            fetch(apiUrl, { 
+                method: 'GET',
+                mode: 'cors',
+                headers: { 'Content-Type': 'application/json' }
+            })
+                .then(response => {
+                    console.log('Response Status:', response.status);
+                    debugDiv.innerHTML += `<br>Status: ${response.status} (${response.statusText})`;
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    return response.text();
+                })
+                .then(data => {
+                    console.log('Raw Data:', data);
+                    debugDiv.innerHTML += `<br>Raw Response: ${data.substring(0, 100)}...`;
+                    
+                    if (data.trim() === '' || data.includes('-----')) {
+                        // খালি বা ড্যাশ-এর জন্য স্পেসিফিক মেসেজ
+                        resultDiv.innerHTML = `
+                            <p class="error"><strong>সমস্যা:</strong> API থেকে কোনো তথ্য পাওয়া যায়নি (খালি রেসপন্স)।<br>
+                            সম্ভব কারণ: API ডাউন বা নাম্বারটি সাপোর্টেড নয়।<br>
+                            অন্য নাম্বার চেষ্টা করুন বা পরে আবার চেক করুন।</p>
+                        `;
+                        return;
+                    }
+                    
+                    try {
+                        const jsonData = JSON.parse(data);
+                        resultDiv.innerHTML = `
+                            <h3>ফলাফল:</h3>
+                            <p><strong>নাম্বার:</strong> ${number}</p>
+                            <p><strong>অপারেটর:</strong> ${jsonData.operator || 'অজানা'}</p>
+                            <p><strong>লোকেশন:</strong> ${jsonData.location || 'অজানা'}</p>
+                            <p><strong>অন্যান্য:</strong> ${JSON.stringify(jsonData) || 'কোনো তথ্য নেই'}</p>
+                        `;
+                    } catch (e) {
+                        resultDiv.innerHTML = `
+                            <h3>ফলাফল (Raw Text):</h3>
+                            <p><strong>নাম্বার:</strong> ${number}</p>
+                            <p><strong>API রেসপন্স:</strong><pre>${data}</pre></p>
+                        `;
+                    }
+                })
+                .catch(error => {
+                    console.error('Fetch Error:', error);
+                    debugDiv.innerHTML += `<br>এরর: ${error.message}`;
+                    resultDiv.innerHTML = `<p class="error">ত্রুটি: ${error.message}<br>সম্ভব কারণ: CORS, API ডাউন বা নেটওয়ার্ক। Console চেক করুন (F12)।</p>`;
+                });
+        }
+        
+        // Enter কী চাপলে
+        document.getElementById('number').addEventListener('keypress', function(event) {
+            if (event.key === 'Enter') {
+                checkNumber();
+            }
+        });
+    </script>
+</body>
+</html>
